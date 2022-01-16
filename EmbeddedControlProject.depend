@@ -1,0 +1,15 @@
+# depslib dependency file v1.0
+1642361440 source:d:\hs weingarten\embeddedcontrolproject\invertor.c
+	<stdio.h>
+	<time.h>
+	<stdlib.h>
+	<gsl/gsl_matrix_double.h>
+	<gsl/gsl_linalg.h>
+
+1642364995 source:d:\hs weingarten\embeddedcontrolproject\main.c
+	<stdio.h>
+	"stdlib.h"
+	"Math.h"
+	<gsl/gsl_matrix_double.h>
+	<gsl/gsl_linalg.h>
+
