@@ -34,6 +34,43 @@ double dt = 0.1;
 double duration = 60.0;
 double Steadystate = 0.0;
 
+#pragma region Inverse of Matrix
+
+gsl_matrix * invert_a_matrix(gsl_matrix *matrix, size_t size)
+{
+    gsl_permutation *p = gsl_permutation_alloc(size);
+    int s;
+
+    // Compute the LU decomposition of this matrix
+    gsl_linalg_LU_decomp(matrix, p, &s);
+
+    // Compute the  inverse of the LU decomposition
+    gsl_matrix *inv = gsl_matrix_alloc(size, size);
+    gsl_linalg_LU_invert(matrix, p, inv);
+
+    gsl_permutation_free(p);
+
+    return inv;
+}
+
+#pragma endregion
+
+void print_mat_contents(gsl_matrix *matrix, size_t size)
+{
+    size_t i, j;
+    double element;
+
+    for (i = 0; i < size; ++i) {
+        for (j = 0; j < size; ++j) {
+            element = gsl_matrix_get(matrix, i, j);
+            printf("%f ", element);
+        }
+        printf("\n");
+    }
+}
+
+#pragma region Main Program
+
 void main()
 {
 	gsl_matrix *pos = gsl_matrix_alloc(POS_ROW, POS_COL);
@@ -47,8 +84,8 @@ void main()
 
 	HinfinityInC(gama, dt, duration, Steadystate, pos, vel, poshat, velhat,
 				poshatinf, velhatinf, hinfgains, kalmangains);
-
 }
+#pragma endregion
 
 void HinfinityInC(double gama,double dt,double duration,double Steadystate, 
 					gsl_matrix *pos,
@@ -60,6 +97,7 @@ void HinfinityInC(double gama,double dt,double duration,double Steadystate,
 					gsl_matrix *hinfgains,
 					gsl_matrix *kalmangains)
 {
+	#pragma region Initialization
 	/*For loop counter declarations */
 	int i,j, count, t,u;
 
@@ -84,7 +122,7 @@ void HinfinityInC(double gama,double dt,double duration,double Steadystate,
 	double c_d[] = {  	0.0,
 						1.0};
 
-	double x_d[] = {  	0.0,
+	double x_d[] = {  	0.1,
 						0.0};
 	
 	double y_d[] = {0.0};
@@ -114,8 +152,171 @@ void HinfinityInC(double gama,double dt,double duration,double Steadystate,
 						(pow(accelnoise,2))*(pow(dt,3)/2), (pow(accelnoise,2))*(pow(dt,2))};
 	gsl_matrix_view P = gsl_matrix_view_array(P_d, 2, 2);
 
-	printf ("[ %f, %f\n", P_d[0], P_d[1]);
-  	printf ("  %f, %f ]\n", P_d[2], P_d[3]);
+	double xhatinf_d[] = {  	0.0,
+								0.0};
+	gsl_matrix_view xhatinf = gsl_matrix_view_array(xhatinf_d, 2, 1);
+
+
+	double Pinf_d[] = {  	0.01, 0,
+							0, 0.01};
+	gsl_matrix_view Pinf = gsl_matrix_view_array(Pinf_d, 2, 2);
+
+	double W_d[] = {  	0.0003/1000, 0.0050/1000,
+						0.0050/1000, 0.1000/1000};
+	gsl_matrix_view W = gsl_matrix_view_array(W_d, 2, 2);
+
+	double V_d[] = {0.01};
+	gsl_matrix_view V = gsl_matrix_view_array(V_d, 1, 1);
+
+	double Q_d[] = {  	0.01, 0.0,
+						0.0, 0.01};
+	gsl_matrix_view Q = gsl_matrix_view_array(Q_d, 2, 2);
+
+	/* Initialize the Pos value */
+	for (i = 0; i < POS_ROW; i++)
+		for (j = 0; j < POS_COL; j++)
+			gsl_matrix_set (pos, i, j, x_d[0]);
+
+	/* Initialize the Vel value */
+	for (i = 0; i < VEL_ROW; i++)
+		for (j = 0; j < VEL_COL; j++)
+			gsl_matrix_set (vel, i, j, x_d[1]);
+
+	/* Initialize the Poshat value */
+	for (i = 0; i < POSHAT_ROW; i++)
+		for (j = 0; j < POSHAT_COL; j++)
+			gsl_matrix_set (poshat, i, j, xhat_d[0]);
+
+	/* Initialize the Velhat value */
+	for (i = 0; i < VELHAT_ROW; i++)
+		for (j = 0; j < VELHAT_COL; j++)
+			gsl_matrix_set (velhat, i, j, xhat_d[1]);
+
+	/* Initialize the Poshatinf value */
+	for (i = 0; i < POSHATINF_ROW; i++)
+		for (j = 0; j < POSHATINF_COL; j++)
+			gsl_matrix_set (poshatinf, i, j, xhatinf_d[0]);
+
+	/* Initialize the Velhatinf value */
+	for (i = 0; i < VELHAT_ROW; i++)
+		for (j = 0; j < VELHAT_COL; j++)
+			gsl_matrix_set (velhatinf, i, j, xhatinf_d[1]);
+	
+	double hinfgains_d[] = {  	0.0,
+								0.0};
+	
+	/* Initialize the hinfgains value */
+	for (i = 0; i < HINFGAINS_ROW; i++)
+		for (j = 0; j < HINFGAINS_COL; j++)
+			gsl_matrix_set (hinfgains, i, j, 0.0);
+
+	/* Initialize the Kalmangains value */
+	for (i = 0; i < KALMANGAINS_ROW; i++)
+		for (j = 0; j < KALMANGAINS_COL; j++)
+			gsl_matrix_set (hinfgains, i, j, 0.0);
+
+	int dt_t = (int)(dt*10.0);
+	int dur_t = (int)(duration*10.0);
+	#pragma endregion
+
+	for(i=0; i<dur_t; i+=dt){
+		// use a constant commanded acceleration of 1 foot/sec^2
+		double u = 1.0;
+
+		// figure out the H-Infinity gains
+		if(Steadystate == 1.0){
+			// Use Steady State H-Infinity Gain
+			gsl_matrix_set(&k.matrix, 0,0,0.11);
+			gsl_matrix_set(&k.matrix, 1,0,0.09);
+		}
+		else{
+			//L = inv(eye(2) - g * Q * Pinf + c' * inv(V) * c_time_Pinf);
+			size_t size = 1;
+			#pragma region  Finding the L equation
+			#pragma region Part 3 of equation
+
+			double c_transpose_d[] = {  	0.0,
+											0.0};
+			gsl_matrix_view c_transpose = gsl_matrix_view_array(c_transpose_d, 2, 1);
+			gsl_matrix_transpose_memcpy(&c_transpose.matrix, &c.matrix);
+
+			gsl_matrix *inverse_of_V = invert_a_matrix(&V.matrix, size);
+
+			double c_times_Pinf_d[] = { 0.00, 
+										0.00};
+
+			gsl_matrix_view c_times_Pinf = gsl_matrix_view_array(c_times_Pinf_d, 1, 2);
+
+			double invV_c_time_Pinf_d[] = { 0.00, 
+										0.00};
+
+			gsl_matrix_view invV_c_time_Pinf = gsl_matrix_view_array(invV_c_time_Pinf_d, 1, 2);
+
+			double till_c_transpose_d[] = { 	0.0, 0.0,
+                 								0.0, 0.0};
+
+			gsl_matrix_view till_c_transpose = gsl_matrix_view_array(till_c_transpose_d, 2, 2);
+
+			gsl_blas_dgemm (CblasNoTrans, CblasNoTrans,
+							1.0, &c.matrix, &Pinf.matrix,
+							0.0, &c_times_Pinf.matrix);
+
+			gsl_blas_dgemm (CblasNoTrans, CblasNoTrans,
+							1.0, inverse_of_V, &c_times_Pinf.matrix,
+							0.0, &invV_c_time_Pinf.matrix);
+
+			gsl_blas_dgemm (CblasNoTrans, CblasNoTrans,
+							1.0, &c_transpose.matrix, &invV_c_time_Pinf.matrix,
+							0.0, &till_c_transpose.matrix);
+			#pragma endregion
+
+			#pragma region Part 2 of equation
+			
+			double part_2_eq_d[] = {	0.0, 0.0,
+										0.0, 0.0};
+			
+			gsl_matrix_view part_2_eq = gsl_matrix_view_array(part_2_eq_d, 2, 2);
+
+			gsl_blas_dgemm (CblasNoTrans, CblasNoTrans,
+							gama, &Q.matrix, &Pinf.matrix,
+							0.0, &part_2_eq.matrix);
+			
+			#pragma endregion
+
+			#pragma region Part 1 of equation
+			double part_1_eq_d[] = {	1.0, 0.0,
+										0.0, 1.0};
+			
+			gsl_matrix_view part_1_eq = gsl_matrix_view_array(part_1_eq_d, 2, 2);
+			#pragma endregion
+
+			gsl_matrix_add(&l.matrix, &part_1_eq.matrix);
+			gsl_matrix_sub(&l.matrix, &part_2_eq.matrix);
+			gsl_matrix_add(&l.matrix, &till_c_transpose.matrix);
+			#pragma endregion
+
+
+		}
+	}
+
+	/*double test_d[] = {1.0,2.0,3.0,4.0};
+	gsl_matrix_view test = gsl_matrix_view_array(test_d, 2, 2);
+	gsl_matrix *transpose = gsl_matrix_alloc(2,2);
+	gsl_matrix_transpose_memcpy(transpose, &test.matrix);
+	print_mat_contents(transpose, size);*/
+
+	/*double test_d[] = {1.0,2.0,3.0,4.0};
+			gsl_matrix_view test = gsl_matrix_view_array(test_d, 2, 2);
+			gsl_matrix *inverse = invert_a_matrix(&test.matrix, size);
+			print_mat_contents(inverse, size);*/
+
+
+/*
+	for (i = 0; i < HINFGAINS_ROW; i++)
+		for (j = 0; j < HINFGAINS_COL; j++)
+			printf ("hinfgains(%d,%d) = %f\n", i, j, gsl_matrix_get (hinfgains, i, j));
+	/*printf ("[ %f, %f\n", xhatinf[0], xhatinf[1]);
+  	printf ("  %f, %f ]\n", xhatinf[2], xhatinf[3]);*/
 
 	/*
 		Initialize H-infinity filter variables
