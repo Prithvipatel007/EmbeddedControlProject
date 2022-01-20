@@ -6,10 +6,13 @@
 	<gsl/gsl_matrix_double.h>
 	<gsl/gsl_linalg.h>
 
-1642537515 source:d:\hs weingarten\embeddedcontrolproject\main.c
+1642685773 source:d:\hs weingarten\embeddedcontrolproject\main.c
 	<stdio.h>
 	"stdlib.h"
 	"Math.h"
 	<gsl/gsl_matrix_double.h>
 	<gsl/gsl_linalg.h>
+	<gsl/gsl_math.h>
+	<gsl/gsl_eigen.h>
+	<time.h>
 
